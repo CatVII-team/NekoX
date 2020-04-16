@@ -1,13 +1,16 @@
 package tw.nekomimi.nekogram
 
 import android.content.Context
+import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import org.telegram.messenger.AndroidUtilities
+import org.telegram.messenger.LocaleController
 import org.telegram.ui.ActionBar.BottomSheet
 import org.telegram.ui.ActionBar.Theme
 import org.telegram.ui.Cells.CheckBoxCell
 import org.telegram.ui.Cells.HeaderCell
+import org.telegram.ui.Cells.TextCheckCell
 import org.telegram.ui.Components.LayoutHelper
 
 class BottomBuilder(val ctx: Context) {
@@ -28,32 +31,45 @@ class BottomBuilder(val ctx: Context) {
 
             orientation = LinearLayout.HORIZONTAL
 
+            gravity = Gravity.CENTER_VERTICAL or if (LocaleController.isRTL) Gravity.LEFT else Gravity.RIGHT
+
             minimumHeight = AndroidUtilities.dp(48F)
 
-            this@BottomBuilder.rootView.addView(this,LayoutHelper.createLinear(-1,-2))
+            this@BottomBuilder.rootView.addView(this, LayoutHelper.createLinear(-1, -2))
 
         }
 
     }
 
     @JvmOverloads
-    fun addTitle(title: String,bigTitle: Boolean = true) {
+    fun addTitle(title: String, bigTitle: Boolean = true) {
 
         val headerCell = if (bigTitle) HeaderCell(ctx, Theme.key_dialogTextBlue2, 21, 15, false) else HeaderCell(ctx)
 
-        rootView.addView(headerCell,LayoutHelper.createLinear(-1,-2))
+        headerCell.setText(title)
+
+        rootView.addView(headerCell, LayoutHelper.createLinear(-1, -2))
 
     }
 
     @JvmOverloads
-    fun addCheckBox(text: String, value: Boolean, valueText: String? = null,bottom: Boolean = false,listener: View.OnClickListener) {
+    fun addCheckBox(text: String, value: Boolean, valueText: String? = null, listener: View.OnClickListener) {
 
-        val checkBoxCell = CheckBoxCell(ctx, 1, 21)
+        val checkBoxCell = TextCheckCell(ctx, 21, true)
         checkBoxCell.setBackgroundDrawable(Theme.getSelectorDrawable(false))
         checkBoxCell.minimumHeight = AndroidUtilities.dp(50F)
-        rootView.addView(checkBoxCell, LayoutHelper.createLinear(-1,-2))
-        checkBoxCell.setText(text, valueText ?: "", value, !bottom)
-        checkBoxCell.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
+        rootView.addView(checkBoxCell, LayoutHelper.createLinear(-1, -2))
+
+        if (valueText == null) {
+
+            checkBoxCell.setTextAndCheck(text, value, true)
+
+        } else {
+
+            checkBoxCell.setTextAndValueAndCheck(text, valueText, value, true, true)
+
+        }
+
         checkBoxCell.setOnClickListener(listener)
 
     }
@@ -61,45 +77,51 @@ class BottomBuilder(val ctx: Context) {
     @FunctionalInterface
     interface IndexedListener {
 
-        fun onClick(index: Int,view: CheckBoxCell)
+        fun onClick(index: Int, view: CheckBoxCell)
 
     }
 
     @JvmOverloads
-    fun setCheckItems(text: Array<String>, value: (Int) -> Boolean , valueText: ((Int) -> String)? = null,listener: IndexedListener) {
+    fun setCheckItems(text: Array<String>, value: (Int) -> Boolean, valueText: ((Int) -> String)? = null, listener: IndexedListener) {
 
         text.forEachIndexed { index, textI ->
 
-            val checkBoxCell = CheckBoxCell(ctx, 1, 21)
-            checkBoxCell.setBackgroundDrawable(Theme.getSelectorDrawable(false))
-            checkBoxCell.minimumHeight = AndroidUtilities.dp(50F)
-            rootView.addView(checkBoxCell, LayoutHelper.createLinear(-1, -2))
-            checkBoxCell.setText(textI, valueText?.invoke(index) ?: "", value.invoke(index), index < text.size - 1)
-            checkBoxCell.setTextColor(Theme.getColor(Theme.key_dialogTextBlack))
-            checkBoxCell.setOnClickListener { _ -> listener.onClick(index,checkBoxCell) }
+           addCheckBox(textI,value(index),valueText?.invoke(index),View.OnClickListener {
+
+               listener.onClick(index,it as CheckBoxCell)
+
+           })
 
         }
 
     }
 
     @JvmOverloads
-    fun addButton(text: String,icon: Int = 0,red: Boolean = false,listener: View.OnClickListener) {
+    fun addButton(text: String, icon: Int = 0, red: Boolean = false, listener: View.OnClickListener?): BottomSheet.BottomSheetCell {
 
-        buttonsView.addView(BottomSheet.BottomSheetCell(ctx,1).apply {
+        return BottomSheet.BottomSheetCell(ctx, 1).apply {
 
             setBackgroundDrawable(Theme.getSelectorDrawable(false))
             setTextAndIcon(text, icon)
             setTextColor(Theme.getColor(if (red) Theme.key_windowBackgroundWhiteRedText else Theme.key_dialogTextBlue2))
             setOnClickListener { v ->
-                listener.onClick(v)
-                builder.dismissRunnable.run()
+                if (listener != null) {
+                    listener.onClick(v)
+                } else {
+                    builder.dismissRunnable.run()
+                }
             }
 
-        })
+            buttonsView.addView(this, LinearLayout.LayoutParams(-2, -1))
+
+        }
 
     }
 
     fun create() = builder.create()
     fun show() = builder.show()
+    fun dismiss() {
+        builder.dismissRunnable.run()
+    }
 
 }
